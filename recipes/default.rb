@@ -53,9 +53,28 @@ end
 
 # Create service
 #
+if platform_family?('smartos', 'solaris2')
+  # This uses an `if` statement rather than `only_if` to avoid making the smf
+  # cookbook a hard dependency.
+
+  smf 'elasticsearch' do
+    credentials_user node.elasticsearch[:user]
+    start_timeout 30
+    working_directory node.elasticsearch[:dir]
+    environment(
+      'ES_INCLUDE' => "#{node.elasticsearch[:path][:conf]}/elasticsearch-env.sh"
+    )
+    start_command "#{node.elasticsearch[:dir]}/bin/elasticsearch -p #{node.elasticsearch[:pid_file]}"
+    restart_command ':kill -SIGHUP'
+    stop_command ':kill'
+    only_if { platform_family?('smartos') }
+  end
+end
+
 template "/etc/init.d/elasticsearch" do
   source "elasticsearch.init.erb"
   owner 'root' and mode 0755
+  not_if { platform_family?('smartos') }
 end
 
 service "elasticsearch" do
@@ -91,7 +110,10 @@ bash "enable user limits" do
     echo 'session    required   pam_limits.so' >> /etc/pam.d/su
   END
 
-  not_if { ::File.read("/etc/pam.d/su").match(/^session    required   pam_limits\.so/) }
+  not_if do
+    platform_family?('smartos') ||
+      ::File.read("/etc/pam.d/su").match(/^session    required   pam_limits\.so/)
+  end
 end
 
 bash "increase limits for the elasticsearch user" do
@@ -103,10 +125,12 @@ bash "increase limits for the elasticsearch user" do
   END
 
   not_if do
-    file = ::File.read("/etc/security/limits.conf")
-    file.include?("#{node.elasticsearch.fetch(:user, "elasticsearch")}     -    nofile    #{node.elasticsearch[:limits][:nofile]}") \
-    &&           \
-    file.include?("#{node.elasticsearch.fetch(:user, "elasticsearch")}     -    memlock   #{node.elasticsearch[:limits][:memlock]}")
+    platform_family?('smartos') || (
+      file = ::File.read("/etc/security/limits.conf")
+      file.include?("#{node.elasticsearch.fetch(:user, "elasticsearch")}     -    nofile    #{node.elasticsearch[:limits][:nofile]}") \
+      &&           \
+      file.include?("#{node.elasticsearch.fetch(:user, "elasticsearch")}     -    memlock   #{node.elasticsearch[:limits][:memlock]}")
+    )
   end
 end
 

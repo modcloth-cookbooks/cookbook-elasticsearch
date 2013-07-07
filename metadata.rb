@@ -8,6 +8,8 @@ long_description IO.read(File.join(File.dirname(__FILE__), 'README.markdown'))
 version          "0.3.1"
 
 depends 'ark'
+# depends 'smf'
+recommends 'smf' # until `depends` supports `platform_family` (CHEF-3282)
 
 recommends 'build-essential'
 recommends 'xml'
